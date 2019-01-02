@@ -62,8 +62,10 @@ namespace LifxNet
 				Identifier = (uint)randomizer.Next(),
 				AcknowledgeRequired = true
 			};
-			return (await BroadcastMessageAsync<LightPowerResponse>(
-				bulb.HostName, header, MessageType.LightGetPower).ConfigureAwait(false)).IsOn;
+
+            var response = await BroadcastMessageAsync<LightPowerResponse>(bulb.HostName, header, MessageType.LightGetPower).ConfigureAwait(false);
+
+            return response != null ? response.IsOn : false;
 		}
 
 		/// <summary>

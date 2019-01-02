@@ -38,6 +38,7 @@ namespace LifxNet
 		{
             IPEndPoint end = new IPEndPoint(IPAddress.Any, Port);
 			_socket = new UdpClient(end);
+            _socket.EnableBroadcast = true;
             _socket.Client.Blocking = false;
 			_socket.DontFragment = true;
             _socket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
@@ -128,13 +129,6 @@ namespace LifxNet
             T result = default(T);
             do
             {
-#if DEBUG
-                /// MemoryStream ms = new MemoryStream();
-                /// await WritePacketToStreamAsync(ms.AsOutputStream(), header, (UInt16)type, payload).ConfigureAwait(false);
-                /// var data = ms.ToArray();
-                /// System.Diagnostics.Debug.WriteLine(
-                /// 	string.Join(",", (from a in data select a.ToString("X2")).ToArray()));
-#endif
                 if (hostName == null)
                 {
                     hostName = "255.255.255.255";
@@ -151,10 +145,6 @@ namespace LifxNet
                         {
                             if (r.GetType() == typeof(T))
                                 tcs.SetResult((T)r);
-                            else
-                            {
-
-                            }
                         }
                     };
                     taskCompletions[header.Identifier] = action;
@@ -162,23 +152,27 @@ namespace LifxNet
 
                 using (MemoryStream stream = new MemoryStream())
                 {
-                    await WritePacketToStreamAsync(stream, header, (UInt16)type, payload).ConfigureAwait(false);
+                    WritePacketToStreamAsync(stream, header, (UInt16)type, payload);
                     var msg = stream.ToArray();
                     await _socket.SendAsync(msg, msg.Length, hostName, Port);
                 }
-                //{
-                //	await WritePacketToStreamAsync(stream, header, (UInt16)type, payload).ConfigureAwait(false);
-                //}
+
                 if (tcs != null)
                 {
                     var _ = Task.Delay(1000).ContinueWith((t) =>
                     {
                         if (!tcs.Task.IsCompleted)
+                        {
                             tcs.TrySetException(new TimeoutException());
+                        }
                     });
                     try
                     {
                         result = await tcs.Task.ConfigureAwait(false);
+                    }
+                    catch
+                    {
+
                     }
                     finally
                     {
@@ -220,7 +214,7 @@ namespace LifxNet
 			}
 		}
 
-		private async Task WritePacketToStreamAsync(Stream outStream, FrameHeader header, UInt16 type, byte[] payload)
+		private void WritePacketToStreamAsync(Stream outStream, FrameHeader header, UInt16 type, byte[] payload)
 		{
 			using (var dw = new BinaryWriter(outStream) { /*ByteOrder = ByteOrder.LittleEndian*/ })
 			{
